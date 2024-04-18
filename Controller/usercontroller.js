@@ -16,7 +16,10 @@ const registerUser = async (req, res) => {
     const { email, password } = req.body;
     const otp = Math.floor(100000 + Math.random() * 900000);
     const hashedPassword = await bcrypt.hash(password, 12);
-
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
     // Create new user instance
     const user = new User({ email, password: hashedPassword, otp });
 
@@ -43,4 +46,26 @@ const registerUser = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-module.exports = { registerUser};
+  
+const validateopt = async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      const user = await User.findOne({ email });
+  
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      const storedOTP = user.otp;
+      if (otp !== storedOTP) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+      user.validated = true;
+      await user.save();
+  
+      res.status(200).json({ message: 'User validated successfully' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+module.exports = { registerUser,validateopt};

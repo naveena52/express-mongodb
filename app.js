@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 require('dotenv').config(); 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const { registerUser} = require('./Controller/usercontroller');
+const { registerUser,validateopt} = require('./Controller/usercontroller');
 
 app.use(bodyParser.json());
 mongoose.connect(process.env.MONGODB_URI, { 
@@ -12,6 +12,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   useUnifiedTopology: true,
 });
 app.post('/register', registerUser);
+app.post('/validateuser',validateopt);
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT} 🚀`);
 });
