@@ -122,4 +122,34 @@ const validateopt = async (req, res) => {
       res.status(500).json({ message: 'Internal server error' });
     }
   };
-module.exports = { registerUser,validateopt,loginUser,updateUserInformation};
+  const getUserInfo = async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ message: 'Authorization header missing' });
+      }
+  
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        return res.status(401).json({ message: 'Token missing in Authorization header' });
+      }
+  
+      const decodedToken = jwt.verify(token, 'x-access-token');
+      const userEmail = decodedToken.email;
+      const user = await User.findOne({ email: userEmail }).select('-password');
+  
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      res.status(200).json({ user });
+    } catch (error) {
+      console.error(error);
+      if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+  
+module.exports = { registerUser,validateopt,loginUser,updateUserInformation,getUserInfo};
