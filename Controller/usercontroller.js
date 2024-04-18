@@ -9,43 +9,58 @@ const transporter = nodemailer.createTransport({
     pass: 'rryc ktvd tjfr auqx',
   },
 });
-
 const registerUser = async (req, res) => {
-  try 
-  {
-    const { email, password } = req.body;
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
-    }
-    // Create new user instance
-    const user = new User({ email, password: hashedPassword, otp });
-
-    // Save user to the database
-    await user.save();
-    const mailOptions = {
-      from: 'navina2k.ponna@gmail.com',
-      to: email,
-      subject: 'OTP Verification',
-      text: `Your OTP for registration is ${otp}`,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.log(error);
-        return res.status(500).json({ message: 'Failed to send OTP' });
-      } else {
-        console.log('Email sent: ' + info.response);
-        return res.status(200).json({ message: 'OTP sent to your email' });
+    try {
+      const { email, password } = req.body;
+  
+      // Validate password
+      const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.{8,})/;
+      if (!passwordRegex.test(password)) {
+        return res.status(400).json({ message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least 8 characters long' });
       }
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
+  
+      // Check if user with the same email already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+  
+      // Generate OTP
+      const otp = Math.floor(100000 + Math.random() * 900000);
+  
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12);
+  
+      // Create new user instance
+      const newUser = new User({ email, password: hashedPassword, otp });
+  
+      // Save the new user to the database
+      await newUser.save();
+  
+      // Send OTP email
+      const mailOptions = {
+        from: 'navina2k.ponna@gmail.com',
+        to: email,
+        subject: 'OTP Verification',
+        text: `Your OTP for registration is ${otp}`,
+      };
+  
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('Failed to send OTP email:', error);
+          return res.status(500).json({ message: 'Failed to send OTP email' });
+        }
+        console.log('Email sent:', info.response);
+        return res.status(200).json({ message: 'OTP sent to your email' });
+      });
+    } catch (error) {
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({ message: error.message });
+      }
+      console.error('Error registering user:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
   
 const validateopt = async (req, res) => {
     try {
@@ -102,26 +117,31 @@ const validateopt = async (req, res) => {
         return res.status(401).json({ message: 'Token missing in Authorization header' });
       }
   
-      const decodedToken = jwt.verify(token, 'x-access-token');
-      const userEmail = decodedToken.email;
-      const user = await User.findOneAndUpdate(
-        { email: userEmail },
-        { $set: { location, age, workDetails, validated: true } },
-        { new: true }
-      );
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+      try {
+        const decodedToken = jwt.verify(token, 'x-access-token');
+        const userEmail = decodedToken.email;
+        const user = await User.findOneAndUpdate(
+          { email: userEmail },
+          { $set: { location, age, workDetails, validated: true } },
+          { new: true }
+        );
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+        }
   
-      res.status(200).json({ message: 'User information updated successfully' });
+        return res.status(200).json({ message: 'User information updated successfully' });
+      } catch (verifyError) {
+        if (verifyError.name === 'TokenExpiredError') {
+          return res.status(401).json({ message: 'Token has expired. Please log in again.' });
+        }
+        throw verifyError; // Re-throw other errors for general error handling
+      }
     } catch (error) {
       console.error(error);
-      if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
       res.status(500).json({ message: 'Internal server error' });
     }
   };
+  
   const getUserInfo = async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
@@ -134,22 +154,27 @@ const validateopt = async (req, res) => {
         return res.status(401).json({ message: 'Token missing in Authorization header' });
       }
   
-      const decodedToken = jwt.verify(token, 'x-access-token');
-      const userEmail = decodedToken.email;
-      const user = await User.findOne({ email: userEmail }).select('-password');
+      try {
+        const decodedToken = jwt.verify(token, 'x-access-token');
+        const userEmail = decodedToken.email;
+        const user = await User.findOne({ email: userEmail }).select('-password');
   
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+  
+        return res.status(200).json({ user });
+      } catch (verifyError) {
+        if (verifyError.name === 'TokenExpiredError') {
+          return res.status(401).json({ message: 'Token has expired. Please log in again.' });
+        }
+        throw verifyError; // Re-throw other errors for general error handling
       }
-  
-      res.status(200).json({ user });
     } catch (error) {
       console.error(error);
-      if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ message: 'Invalid token' });
-      }
       res.status(500).json({ message: 'Internal server error' });
     }
   };
+  
   
 module.exports = { registerUser,validateopt,loginUser,updateUserInformation,getUserInfo};
