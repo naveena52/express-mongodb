@@ -22,7 +22,7 @@ const registerUser = async (req, res) => {
       // Check if user with the same email already exists
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        return res.status(400).json({ message: 'User with this email already exists' });
+        return res.status(400).json({ message: 'User with this email already exists Please Login ' });
       }
   
       // Generate OTP
@@ -62,7 +62,7 @@ const registerUser = async (req, res) => {
     }
   };
   
-const validateopt = async (req, res) => {
+  const validateopt = async (req, res) => {
     try {
       const { email, otp } = req.body;
       const user = await User.findOne({ email });
@@ -70,40 +70,63 @@ const validateopt = async (req, res) => {
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
+  
       const storedOTP = user.otp;
       if (otp !== storedOTP) {
         return res.status(400).json({ message: 'Invalid OTP' });
       }
+  
+      // Check if the user is already verified
+      if (user.validated) {
+        return res.status(400).json({ message: 'Email already verified' });
+      }
+  
       user.validated = true;
       await user.save();
   
       res.status(200).json({ message: 'User validated successfully' });
     } catch (error) {
-      console.error(error);
+      console.error('Error validating OTP:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   };
+  
   const loginUser = async (req, res) => {
     try {
       const { email, password } = req.body;
+      
+      // Check if email is provided
       if (!email) {
         return res.status(400).json({ message: 'Email is required' });
       }
+  
+      // Find user by email
       const user = await User.findOne({ email });
+  
+      // If user not found, return 401 status code for unregistered email
       if (!user) {
-        return res.status(401).json({ message: 'Invalid email ' });
+        return res.status(401).json({ message: 'Unregistered email Please Register' });
       }
+  
+      // Check if the provided password matches the hashed password
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      // If password is invalid, return 401 status code
       if (!isPasswordValid) {
         return res.status(401).json({ message: 'Invalid password' });
       }
+  
+      // If both email and password are valid, generate JWT token
       const token = jwt.sign({ email: user.email }, 'x-access-token', { expiresIn: '1h' });
+      
+      // Return the token with a 200 status code
       res.status(200).json({ token });
     } catch (error) {
-      console.error(error);
+      console.error('Error logging in:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   };
+  
   const updateUserInformation = async (req, res) => {
     try {
       const { location, age, workDetails } = req.body;
@@ -120,12 +143,21 @@ const validateopt = async (req, res) => {
       try {
         const decodedToken = jwt.verify(token, 'x-access-token');
         const userEmail = decodedToken.email;
-        const user = await User.findOneAndUpdate(
+  
+        // Check if user is validated
+        const user = await User.findOne({ email: userEmail });
+        if (!user.validated) {
+          return res.status(401).json({ message: 'User is not validated please validate with opt' });
+        }
+  
+        // Update user information
+        const updatedUser = await User.findOneAndUpdate(
           { email: userEmail },
-          { $set: { location, age, workDetails, validated: true } },
+          { $set: { location, age, workDetails } },
           { new: true }
         );
-        if (!user) {
+  
+        if (!updatedUser) {
           return res.status(404).json({ message: 'User not found' });
         }
   
@@ -177,4 +209,4 @@ const validateopt = async (req, res) => {
   };
   
   
-module.exports = { registerUser,validateopt,loginUser,updateUserInformation,getUserInfo};
+module.exports = { registerUser,validateopt,loginUser,updateUserInformation ,getUserInfo};
