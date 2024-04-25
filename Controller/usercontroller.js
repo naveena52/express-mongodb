@@ -13,31 +13,31 @@ const registerUser = async (req, res) => {
     try {
       const { email, password } = req.body;
   
-      // Validate password
+    
       const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.{8,})/;
       if (!passwordRegex.test(password)) {
         return res.status(400).json({ message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least 8 characters long' });
       }
   
-      // Check if user with the same email already exists
+      
       const existingUser = await User.findOne({ email });
       if (existingUser) {
         return res.status(400).json({ message: 'User with this email already exists Please Login ' });
       }
   
-      // Generate OTP
+      
       const otp = Math.floor(100000 + Math.random() * 900000);
   
-      // Hash password
+      
       const hashedPassword = await bcrypt.hash(password, 12);
   
-      // Create new user instance
+      
       const newUser = new User({ email, password: hashedPassword, otp });
   
-      // Save the new user to the database
+      
       await newUser.save();
   
-      // Send OTP email
+    
       const mailOptions = {
         from: 'navina2k.ponna@gmail.com',
         to: email,
@@ -76,7 +76,7 @@ const registerUser = async (req, res) => {
         return res.status(400).json({ message: 'Invalid OTP' });
       }
   
-      // Check if the user is already verified
+    
       if (user.validated) {
         return res.status(400).json({ message: 'Email already verified' });
       }
@@ -95,31 +95,31 @@ const registerUser = async (req, res) => {
     try {
       const { email, password } = req.body;
       
-      // Check if email is provided
+      
       if (!email) {
         return res.status(400).json({ message: 'Email is required' });
       }
   
-      // Find user by email
+     
       const user = await User.findOne({ email });
   
-      // If user not found, return 401 status code for unregistered email
+      
       if (!user) {
         return res.status(401).json({ message: 'Unregistered email Please Register' });
       }
   
-      // Check if the provided password matches the hashed password
+   
       const isPasswordValid = await bcrypt.compare(password, user.password);
       
-      // If password is invalid, return 401 status code
+      
       if (!isPasswordValid) {
         return res.status(401).json({ message: 'Invalid password' });
       }
   
-      // If both email and password are valid, generate JWT token
+    
       const token = jwt.sign({ email: user.email }, 'x-access-token', { expiresIn: '1h' });
       
-      // Return the token with a 200 status code
+      
       res.status(200).json({ token });
     } catch (error) {
       console.error('Error logging in:', error);
@@ -144,13 +144,13 @@ const registerUser = async (req, res) => {
         const decodedToken = jwt.verify(token, 'x-access-token');
         const userEmail = decodedToken.email;
   
-        // Check if user is validated
+       
         const user = await User.findOne({ email: userEmail });
         if (!user.validated) {
           return res.status(401).json({ message: 'User is not validated please validate with opt' });
         }
   
-        // Update user information
+    
         const updatedUser = await User.findOneAndUpdate(
           { email: userEmail },
           { $set: { location, age, workDetails } },
